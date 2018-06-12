@@ -7,6 +7,8 @@
 cut -d, -f4 201402-citibike-tripdata.csv | tail -n +2 | sort | uniq -c | wc -l
 cut -d -f8 201402-citibike-tripdata.csv | tail -n +2 | sort | uniq -c | wc -l
 ### checking the number of unique start and end stations; they match!
+### another way:
+cut -d, -f4,8 201402-citibike-tripdata.csv | tr , '\n' | tail -n +3 | sort | uniq | wc -l
 
 # count the number of unique bikes
 cut -d, -f12 201402-citibike-tripdata.csv | tail -n +2 | sort | uniq -c | wc -l
