@@ -58,14 +58,14 @@ trips %>%
 
 # find the top 3 end stations for trips starting from each start station
 trips %>% 
-  group_by(start_station_name,end_station_name) %>% 
+  group_by(start_station_name, end_station_name) %>% 
   summarize(count = n()) %>% 
   filter(rank(desc(count)) < 4) %>% 
   arrange(start_station_name, desc(count))
 
 # find the top 3 most common station-to-station trips by gender
 trips %>% 
-  group_by(start_station_name,end_station_name, gender) %>% 
+  group_by(start_station_name, end_station_name, gender) %>% 
   summarize(count = n()) %>% 
   arrange(desc(count)) %>% 
   group_by(gender) %>% 
