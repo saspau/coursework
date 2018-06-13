@@ -23,21 +23,37 @@ trips <- mutate(trips, gender = factor(gender, levels=c(0,1,2), labels = c("Unkn
 ########################################
 
 # count the number of trips (= rows in the data frame)
+nrow(trips)
 
 # find the earliest and latest birth years (see help for max and min to deal with NAs)
+### EARLIEST
+select(trips,birth_year) %>% filter(birth_year == max(birth_year))
+select(trips,birth_year) %>% arrange(desc(birth_year))
+### LATEST
 
 # use filter and grepl to find all trips that either start or end on broadway
+filter(trips, grepl("Broadway",start_station_name) | grepl("Broadway",end_station_name))
 
 # do the same, but find all trips that both start and end on broadway
+filter(trips, grepl("Broadway",start_station_name), grepl("Broadway",end_station_name))
+### can also use & instead of , between the grepl()'s
 
 # find all unique station names
+trips %>% select(start_station_name) %>% group_by(start_station_name)
 
 # count the number of trips by gender
+trips %>% group_by(gender) %>% summarize(count = n())
 
 # compute the average trip time by gender
 # comment on whether there's a (statistically) significant difference
+trips %>% group_by(gender) %>% summarize(count = n(), avg_trip_duration = mean(tripduration))
 
 # find the 10 most frequent station-to-station trips
+trips %>% 
+  select(start_station_name,end_station_name) %>% 
+  group_by(start_station_name,end_station_name) %>% 
+  summarize(count = n()) %>% arrange(desc(count)) %>% 
+  head(10)
 
 # find the top 3 end stations for trips starting from each start station
 
