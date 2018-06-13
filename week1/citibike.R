@@ -26,16 +26,17 @@ trips <- mutate(trips, gender = factor(gender, levels=c(0,1,2), labels = c("Unkn
 nrow(trips)
 
 # find the earliest and latest birth years (see help for max and min to deal with NAs)
+### LATEST: both commands below work
+select(trips, birth_year) %>% filter(birth_year == max(birth_year)) %>% head(1)
+select(trips, birth_year) %>% arrange(desc(birth_year)) %>% head(1)
 ### EARLIEST
-select(trips,birth_year) %>% filter(birth_year == max(birth_year))
-select(trips,birth_year) %>% arrange(desc(birth_year))
-### LATEST
+select(trips, birth_year) %>% filter(birth_year != "\\N") %>% arrange(birth_year) %>% head(1)
 
 # use filter and grepl to find all trips that either start or end on broadway
-filter(trips, grepl("Broadway",start_station_name) | grepl("Broadway",end_station_name))
+filter(trips, grepl("Broadway", start_station_name) | grepl("Broadway", end_station_name))
 
 # do the same, but find all trips that both start and end on broadway
-filter(trips, grepl("Broadway",start_station_name), grepl("Broadway",end_station_name))
+filter(trips, grepl("Broadway", start_station_name), grepl("Broadway" , end_station_name))
 ### can also use & instead of , between the grepl()'s
 
 # find all unique station names
@@ -50,8 +51,8 @@ trips %>% group_by(gender) %>% summarize(count = n(), avg_trip_duration = mean(t
 
 # find the 10 most frequent station-to-station trips
 trips %>% 
-  select(start_station_name,end_station_name) %>% 
-  group_by(start_station_name,end_station_name) %>% 
+  select(start_station_name, end_station_name) %>% 
+  group_by(start_station_name, end_station_name) %>% 
   summarize(count = n()) %>% arrange(desc(count)) %>% 
   head(10)
 
@@ -63,6 +64,7 @@ trips %>%
   arrange(start_station_name, desc(count))
 
 # find the top 3 most common station-to-station trips by gender
+
 
 # find the day with the most trips
 # tip: first add a column for year/month/day without time of day (use as.Date or floor_date from the lubridate package)
