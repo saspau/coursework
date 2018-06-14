@@ -1,1 +1,4 @@
 *-citibike-tripdata.csv
+movies.tsv
+ratings.*
+*.RData

@@ -5,6 +5,7 @@
 # load some packages that we'll need
 library(tidyverse)
 library(scales)
+library(lubridate)
 
 # be picky about white backgrounds on our plots
 theme_set(theme_bw())
@@ -18,23 +19,73 @@ load('trips.RData')
 ########################################
 
 # plot the distribution of trip times across all rides
+ggplot(data = trips) + 
+  geom_histogram(aes(x = tripduration)) + 
+  scale_x_log10(label = comma) +
+  scale_y_continuous(label = comma) +
+  xlab("Trip Duration (s)") +
+  ylab("Number of Trips")
 
 # plot the distribution of trip times by rider type
+ggplot(data = trips) + 
+  geom_histogram(aes(x = tripduration)) + 
+  scale_x_log10(label = comma) + 
+  scale_y_continuous(label = comma) +
+  facet_wrap(~ usertype) +
+  xlab("Trip Duration (s)") +
+  ylab("Number of Trips") 
 
 # plot the total number of trips over each day
+trips %>% 
+  mutate(ymd = as.Date(starttime)) %>%
+  group_by(ymd) %>%
+  summarize(count = n()) %>%
+  ggplot(aes(x = ymd, y = count)) + 
+  geom_point() +
+  scale_y_continuous(label = comma) +
+  xlab("Date") +
+  ylab("Number of Trips")
 
 # plot the total number of trips (on the y axis) by age (on the x axis) and age (indicated with color)
+current <- 2018
+trips %>%
+  mutate(age = current - birth_year) %>%
+  group_by(age) %>%
+  summarize(count = n()) %>%
+  ggplot(aes(x = age, y = count, color = age)) +
+  geom_point(na.rm = TRUE) +
+  scale_y_continuous(label = comma) +
+  coord_cartesian(ylim = c(0, 400000)) +
+  xlab("Age") +
+  ylab("Number of Trips")
 
 # plot the ratio of male to female trips (on the y axis) by age (on the x axis)
 # hint: use the spread() function to reshape things to make it easier to compute this ratio
+trips %>%
+  mutate(age = current - birth_year) %>%
+  group_by(gender, age) %>%
+  summarize(count = n()) %>%
+  filter(gender != "Unknown") %>%
+  spread(gender, count) %>%
+  ggplot(aes(x = age, y = Male/Female)) +
+  geom_point() +
+  xlab("Age") +
+  ylab("Male:Female")
+
 
 ########################################
 # plot weather data
 ########################################
 # plot the minimum temperature (on the y axis) over each day (on the x axis)
+ggplot(data = weather, aes(x = ymd, y = tmin)) + 
+  geom_point() +
+  xlab("Date") +
+  ylab("Minimum Temperature (F)")
 
 # plot the minimum temperature and maximum temperature (on the y axis, with different colors) over each day (on the x axis)
 # hint: try using the gather() function for this to reshape things before plotting
+t_all <- weather %>% gather(tmin, tmax, ymd)
+
 
 ########################################
 # plot trip and weather data

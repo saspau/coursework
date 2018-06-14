@@ -26,11 +26,14 @@ trips <- mutate(trips, gender = factor(gender, levels=c(0,1,2), labels = c("Unkn
 nrow(trips)
 
 # find the earliest and latest birth years (see help for max and min to deal with NAs)
-### LATEST: both commands below work
+### LATEST: all working variations
 select(trips, birth_year) %>% filter(birth_year == max(birth_year)) %>% head(1)
 select(trips, birth_year) %>% arrange(desc(birth_year)) %>% head(1)
+max(trips$birth_year, na.rm = T)
 ### EARLIEST
 select(trips, birth_year) %>% filter(birth_year != "\\N") %>% arrange(birth_year) %>% head(1)
+min(as.numeric(trips$birth_year), na.rm = T)
+trips %>% summarise(min(as.numeric(birth_year), na.rm = T))
 
 # use filter and grepl to find all trips that either start or end on broadway
 filter(trips, grepl("Broadway", start_station_name) | grepl("Broadway", end_station_name))
@@ -40,14 +43,16 @@ filter(trips, grepl("Broadway", start_station_name), grepl("Broadway" , end_stat
 ### can also use & instead of , between the grepl()'s
 
 # find all unique station names
-trips %>% group_by(start_station_name)
+trips %>% distinct(start_station_name)
+union(trips$start_station_name, trips$end_station_name)
 
 # count the number of trips by gender
 trips %>% group_by(gender) %>% summarize(count = n())
 
 # compute the average trip time by gender
 # comment on whether there's a (statistically) significant difference
-trips %>% group_by(gender) %>% summarize(count = n(), avg_trip_duration = mean(tripduration))
+### need more computations to answer this
+trips %>% group_by(gender) %>% summarize(avg_trip_duration = mean(tripduration))
 
 # find the 10 most frequent station-to-station trips
 trips %>% 
@@ -84,9 +89,10 @@ trips %>%
 # compute the average number of trips taken during each of the 24 hours of the day across the entire month
 # what time(s) of day tend to be peak hour(s)?
 trips %>% 
-  mutate(ymd = as.Date(starttime)) %>% 
-  mutate(hour = hour(starttime)) %>% 
+  mutate(ymd = as.Date(starttime), hour= hour(starttime)) %>% 
   group_by(ymd, hour) %>% 
   summarize(count = n()) %>% 
   group_by(hour) %>% 
-  summarize(avg = mean(count))
+  summarize(avg = mean(count)) %>% 
+  ggplot() + 
+    geom_line(aes(x=hour, y=avg))
