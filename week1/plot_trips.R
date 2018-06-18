@@ -71,10 +71,10 @@ trips %>%
 current <- 2018
 trips %>%
   mutate(age = current - birth_year) %>%
-  group_by(age) %>%
+  group_by(age, gender) %>%
   filter(!is.na(age)) %>%
   summarize(count = n()) %>%
-  ggplot(aes(x = age, y = count, color = age)) +
+  ggplot(aes(x = age, y = count, color = gender)) +
   geom_point(na.rm = TRUE) +
   scale_y_continuous(label = comma) +
   xlab("Age") +

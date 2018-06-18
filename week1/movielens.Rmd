@@ -35,6 +35,13 @@ head(ratings) %>% kable()
 
 ```{r dist-ratings}
 # plot the distribution of rating values (slide 21)
+ratings %>% 
+  ggplot(mapping = aes(x = rating)) +
+  geom_bar() +
+  scale_y_continuous(label = comma) +
+  xlab("Rating") + 
+  ylab("Number of Movie Titles")
+  
 ```
 
 ## Per-movie stats
@@ -42,16 +49,36 @@ head(ratings) %>% kable()
 ```{r aggregate-by-movie}
 # aggregate ratings by movie, computing mean and number of ratings
 # hint: use the n() function for easy counting within a group
+ratings %>%
+  group_by(movie_id) %>%
+  summarize(num_ratings = n(), avg_rating = mean(rating))
 ```
 
 ```{r dist-movie-popularity}
 # plot distribution of movie popularity (= number of ratings the movie received)
 # hint: try scale_x_log10() for a logarithmic x axis
+ratings %>%
+  group_by(movie_id) %>%
+  summarize(num_ratings = n()) %>% 
+  ggplot(aes(x = num_ratings)) +
+  geom_histogram(bins = 50) +
+  scale_x_log10(label = comma) +
+  xlab("Number of Ratings") +
+  ylab("Number of Movie Titles")
+
 ```
 
 ```{r dist-mean-ratings-by-movie}
 # plot distribution of mean ratings by movie (slide 23)
 # hint: try geom_histogram and geom_density
+ratings %>%
+  group_by(movie_id) %>%
+  summarize(avg_rating = mean(rating)) %>%
+  ggplot(aes(x = avg_rating)) +
+  geom_density(fill = "black") +
+  xlab("Average Rating") +
+  ylab("Number of Movie Titles")
+  
 ```
 
 ```{r cdf-movie-pop}
@@ -59,7 +86,22 @@ head(ratings) %>% kable()
 # hint: use dplyr's rank and arrange functions, and the base R sum and cumsum functions
 # store the result in a new data frame so you can use it in creating figure 2 from the paper below
 
+movie_pop <- ratings %>%
+  group_by(movie_id) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count)) %>%
+  mutate(rank = row_number(), frac_movies = cumsum(count)/sum(count))
+  
+
 # plot the CDF of movie popularity
+movie_pop %>%
+  ggplot() +
+  geom_line(aes(x = rank, y = frac_movies)) +
+  scale_x_continuous(label = comma) +
+  scale_y_continuous(label = scales::percent) +
+  xlab("Movie Popularity (Rank)") +
+  ylab("CDF")
+
 ```
 
 
@@ -67,11 +109,23 @@ head(ratings) %>% kable()
 
 ```{r aggregate-by-user}
 # aggregate ratings by user, computing mean and number of ratings
+ratings %>%
+  group_by(user_id) %>%
+  summarize(num_ratings = n(), avg_rating = mean(rating))
 ```
 
 ```{r dist-user-activity}
 # plot distribution of user activity (= number of ratings the user made)
 # hint: try a log scale here
+ratings %>%  
+  group_by(user_id) %>%
+  summarize(num_ratings = n()) %>%
+  ggplot(aes(x = num_ratings)) +
+  geom_histogram(bins = 30) +
+  scale_x_log10(label = comma) +
+  scale_y_continuous(label = comma) +
+  xlab("Ratings Given") +
+  ylab("Number of Users")
 ```
 
 # Anatomy of the long tail
@@ -89,4 +143,59 @@ head(ratings) %>% kable()
 # paper, produce one curve for the 100% user satisfaction level and
 # another for 90%---do not, however, bother implementing the null
 # model (shown in the dashed lines).
+
+
+ratings_and_rank <- ratings %>% inner_join(movie_pop)
+
+### 100% satisfied
+cutoff_100 <- ratings_and_rank %>% 
+  group_by(user_id) %>% 
+  summarize(cutoff = max(rank)) %>%
+  group_by(cutoff) %>% 
+  summarise(count = n()) %>%
+  arrange(cutoff) %>% 
+  mutate(frac_users = cumsum(count)/sum(count))
+
+ggplot(data = cutoff_100) +
+  geom_line(mapping = aes(x = cutoff, y = frac_users)) +
+  xlab("Movie Popularity (Rank)") +
+  ylab("Users 100% Satisfied") +
+  scale_x_continuous(label = comma) +
+  scale_y_continuous(label = scales::percent)
+
+
+### 90% satisfied
+cutoff_90 <- ratings_and_rank %>% 
+  group_by(user_id) %>% 
+  summarize(cutoff = quantile(rank, .9)) %>% 
+  group_by(cutoff) %>% 
+  summarise(count = n()) %>%
+  arrange(cutoff) %>% 
+  mutate(frac_users = cumsum(count)/sum(count))
+
+ggplot(data = cutoff_90) +
+  geom_line(mapping = aes(x = cutoff, y = frac_users)) +
+  xlab("Movie Popularity (Rank)") +
+  ylab("Users 90% Satisfied") +
+  scale_x_continuous(label = comma) +
+  scale_y_continuous(label = scales::percent) 
+
+
+### plot 100% & 90% together
+cutoff_90 <- cutoff_90 %>% mutate(set_level = "90%")
+cutoff_100 <- cutoff_100 %>% mutate(set_level = "100%")
+
+all_cutoffs <- bind_rows(cutoff_90, cutoff_100)
+
+ggplot(data = all_cutoffs) +
+  geom_line(aes(x = cutoff, y = frac_users, color = set_level)) +
+  xlab("Movie Popularity (Rank)") +
+  ylab("Users Satisfied") +
+  scale_x_continuous(label = comma) +
+  scale_y_continuous(label = scales::percent) +
+  guides(color=guide_legend("p-percent satisfied"))
+
+
 ```
+
+
