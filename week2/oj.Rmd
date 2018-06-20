@@ -1,0 +1,213 @@
+---
+title: "OJ"
+output: html_document
+---
+
+```{r setup, include = FALSE}
+# import libraries
+library(ggplot2)
+library(tidyverse)
+library(dplyr)
+```
+
+```{r load-data}
+# read in data
+oj <- read.csv('oj.csv')
+```
+
+## Visualizing price  
+
+
+Make a box plot of price.
+```{r box-plot-price}
+oj %>% 
+  ggplot(aes(x = "", y = price)) +
+  geom_boxplot()
+```
+
+
+Make a box plot of log price.
+```{r box-plot-log-price}
+oj <- oj %>%
+  mutate(log_price = log(price)) 
+
+oj %>% 
+  ggplot(aes(x = "", y = log_price)) +
+  geom_boxplot()
+```
+
+
+Make a box plot of price, but separate out each brand.
+```{r box-plot-price-brands}
+oj %>% 
+  ggplot(aes(factor(brand), price)) +
+  geom_boxplot(aes(fill = factor(brand)))
+```
+
+
+Do the same for log price. 
+```{r box-plot-log-price-brands}
+oj %>% 
+  mutate(log_price = log(price)) %>%
+  ggplot(aes(factor(brand), log_price)) +
+  geom_boxplot(aes(fill = factor(brand)))
+```
+
+
+#### What do these graphs tell you about the variation in price? Why do the log plots look different? Do you find them more/less informative?
+
+The log plots are more informative in terms of visualizing variance. We can more easily see how the outliers are spread out.
+
+
+## Visualizing the quantity/price relationship
+
+Plot logmove (log quantity) vs. log(price) for each brand.  
+```{r quantity-price}
+oj %>%
+  mutate(log_price = log(price)) %>%
+  ggplot(aes(x = logmove, y = log_price)) +
+  geom_point(aes(color = brand))
+```
+
+#### What do insights can you derive that were not apparent before?
+
+In contrast to the box plot, here we can see how price affects the quantity
+of orange juice sold for each brand. For all 3 brands, with an increase in
+price, fewer products are sold. 
+
+
+## Estimating the relationship
+
+Do a regression of log quantity on log price.
+```{r estimating-relationship-a}
+
+regression <- oj %>%
+  lm(formula = logmove ~ log_price)
+
+summary(regression)
+```
+
+#### How well does the model fit? What is the elasticity, does it make sense?
+
+R-squared is small => doesn't explain variance well, so the model is not a great fit.
+
+
+
+
+Now add in an intercept term for each brand (add brand to the regression), how do the results change? 
+
+``` {r estimating-relationship-b}
+regression_with_intercept <- oj %>%
+  lm(formula = logmove ~ log_price + brand)
+
+summary(regression_with_intercept)
+```
+
+
+Now figure out a way to allow the elasticities to differ by brand. Search 
+"interaction terms" and "dummy variables" if you don't remember this from 
+econometrics. Note the estimate coefficients will "offset" the base estimates.
+What is the insights we get from this regression? What is the elasticity for each 
+firm? Do the elasticities make sense?
+
+```{r estimating-relationship-c}
+regression_with_interaction <- oj %>%
+  lm(formula = logmove ~ log_price * brand)
+
+summary(regression_with_interaction)
+
+
+# plot(logmove ~ log_price, data = oj)
+# abline(regression, col = "blue")
+# abline(regression_with_intercept, col = "darkgreen")
+# abline(regression_with_interaction, col = "red")
+
+```
+
+
+Hold out 20% of your sample randomly.  Estimate the model on the remaining 80%.
+Use the predict command to see how well the model fits on the rest of the 
+data (e.g., y_hat <- predict(my_model, newx = test_matrix))
+```{r predict}
+  
+idx <- as.integer((nrow(oj)*0.8))
+
+set.seed(42)
+train_idx <- sample(seq_len(nrow(oj)), idx)
+
+train <- data.frame(oj[train_idx,])
+test <- data.frame(oj[-train_idx,])
+
+model <- lm(formula = logmove ~ log_price + brand + log_price*brand, data = oj)
+
+y_hat <- predict(model, newx = test)
+summary(y_hat)
+
+
+```
+
+## Impact of "featuring in store"
+
+Which brand is featured the most? 
+```{r feature-a}
+oj %>%
+  group_by(store, brand, feat) %>% summarize(count= n()) %>% filter(feat == 1) %>%
+  ggplot(aes(x = store, y = count)) +
+  geom_point(aes(color = factor(brand)), position = "jitter") +
+  xlab("Store ID") +
+  ylab("Number of Times Featured")
+
+oj %>%
+  ggplot(aes(feat, brand)) +
+  geom_point(position = "jitter", aes(color = brand))
+
+```
+
+What is the average price and featured rate of each brand? 
+```{r feature-a-i}
+
+oj %>% 
+  group_by(brand) %>% 
+  summarize(feat = mean(feat), price = mean(price))
+
+oj %>%
+  group_by(brand, feat) %>%
+  summarize(mean_price = mean(price), sd_price = sd(price), obs = length(price))
+
+```
+
+
+
+How should incorporate the feature variable into our regression? 
+Start with an additive formulation (e.g. feature impacts sales, but not through price).
+```{r feature-b}
+
+regression_with_feature <- oj %>%
+  lm(formula = logmove ~ log_price * brand + feat)
+
+summary(regression_with_feature)
+
+```
+
+Now run a model where features can impact sales and price sensitivity.
+```{r feature-c}
+
+regression_with_feature_price <- oj %>%
+  lm(formula = logmove ~ log_price * brand + feat * log_price)
+
+summary(regression_with_feature_price)
+
+```
+
+
+Now add what you think are the most relevant sociodemographic controls and 
+produce the regression results from that regression as well. 
+```{r feature-d}
+ 
+regression_with_socio <- oj %>%
+  lm(formula = logmove ~ log_price * brand + feat * log_price + AGE60)
+
+summary(regression_with_socio)
+### R-squared = 0.5401
+
+```
