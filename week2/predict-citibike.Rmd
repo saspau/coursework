@@ -1,0 +1,101 @@
+---
+title: "Predict Citibike"
+output:
+  html_document:
+    df_print: paged
+---
+
+
+```{r setup}
+# load some packages that we'll need
+library(tidyverse)
+library(modelr)
+library(lubridate)
+library(scales)
+
+
+# be picky about white backgrounds on our plots
+theme_set(theme_bw())
+
+
+# load RData file output by load_trips.R
+load('../week1/trips.RData')
+```
+
+```{r fix-df}
+# join trips and weather
+trips_with_weather <- trips %>% 
+  group_by(ymd) %>% 
+  summarize(count = n()) %>% 
+  left_join(weather) %>%
+  filter(!is.na(tmin))
+
+
+# add holiday data
+# holidays <- read.csv("holidays.csv")
+# holidays <- holidays %>% 
+  # mutate(ymd = as.Date(Date, "%m/%d/%Y")) %>% select(ymd, Bank.Holiday)
+
+
+# isolate previous day's prcp and snow
+prev_prcp <- trips_with_weather
+prev_prcp$date <- prev_prcp$date+1
+prev_prcp <- prev_prcp %>% select(date, prcp, snow)
+colnames(prev_prcp)[2] <- "prev_prcp"
+colnames(prev_prcp)[3] <- "prev_snow"
+
+
+# add previous day's prcp and snow
+trips_with_weather <- trips_with_weather %>% 
+  mutate(day_of_week = weekdays(ymd)) %>%
+  left_join(prev_prcp) %>%
+  filter(!is.na(prev_prcp)) # removes 01-01-2014 bc there is no previous day
+```
+
+```{r create-model}
+set.seed(23)
+
+train <- sample_n(trips_with_weather, nrow(trips_with_weather)*0.8)
+test <- anti_join(trips_with_weather, train)
+
+# our best model
+model <- lm(formula = count ~ tmax + prcp*tmin + day_of_week + snwd, data = train)
+summary(model)
+
+test$pred <- predict(model, newdata = test)
+train$pred <- predict(model, newdata = train)
+
+R_squared_test <- cor(test$pred, test$count)^2
+R_squared_test
+
+RMSE_test <- rmse(model, test)
+RMSE_test
+```
+
+
+```{r plot1}
+
+# points are actual values, line is predicted
+test %>%
+  ggplot() +
+  geom_point(aes(x = ymd, y = count)) +
+  geom_line(aes(x = ymd, y = pred), color = "red") +
+  xlab("Date") +
+  ylab("Number of Rides") +
+  scale_y_continuous(label = comma)
+```
+
+```{r plot2}
+test %>%
+  ggplot() +
+  geom_point(aes(x = pred, y = count)) +
+  xlab("Predicted Rides") +
+  ylab("Actual Rides") +
+  scale_x_continuous(label = comma) +
+  scale_y_continuous(label = comma)
+
+```
+
+```{r save}
+save(model, file = "citibike_model.RData")
+```

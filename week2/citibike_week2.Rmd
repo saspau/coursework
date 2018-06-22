@@ -1,0 +1,175 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+
+```{r setup}
+# load some packages that we'll need
+library(tidyverse)
+library(modelr)
+library(ggplot2)
+
+
+# be picky about white backgrounds on our plots
+theme_set(theme_bw())
+
+
+# load RData file output by load_trips.R
+load('../week1/trips.RData')
+```
+
+```{r }
+# join trips and weather
+trips_with_weather <- trips %>% 
+  group_by(ymd) %>% 
+  summarize(count = n()) %>% 
+  left_join(weather) %>%
+  filter(!is.na(tmin))
+```
+
+```{r ols}
+# simple linear regression with count and tmin
+
+set.seed(23)
+
+train <- sample_n(trips_with_weather, nrow(trips_with_weather)*0.8)
+test <- anti_join(trips_with_weather, train)
+
+# do cross-validation
+model <- lm(formula = count ~ tmin, data = train)
+
+test$pred <- predict(model, newdata = test)
+train$pred <- predict(model, newdata = train)
+
+R_squared_train <- cor(train$pred, train$count)^2
+R_squared_train
+RMSE_train <- rmse(model, train)
+RMSE_train
+
+
+R_squared_test <- cor(test$pred, test$count)^2
+R_squared_test
+RMSE_test <- rmse(model, test)
+RMSE_test
+
+```
+
+```{r plot-ols}
+test %>%
+  ggplot() +
+  geom_point(aes(x = tmin, y = count)) +
+  geom_line(aes(x = tmin, y = pred), color = "red")
+
+```
+
+
+
+```{r quad}
+# adding a quadratic term to the regression (tmin^2)
+
+set.seed(23)
+
+train <- sample_n(trips_with_weather, nrow(trips_with_weather)*0.8)
+test <- anti_join(trips_with_weather, train)
+
+# do cross-validation
+model <- lm(formula = count ~ tmin + poly(tmin, 2), data = train)
+
+test$pred <- predict(model, newdata = test)
+train$pred <- predict(model, newdata = train)
+
+R_squared_test <- cor(test$pred, test$count)^2
+R_squared_test
+RMSE_test <- rmse(model, test)
+RMSE_test
+
+
+```
+
+
+```{r plot-quad}
+test %>%
+  ggplot() +
+  geom_point(aes(x = tmin, y = count)) +
+  geom_line(aes(x = tmin, y = pred), color = "red")
+```
+
+```{r poly}
+set.seed(23)
+
+train <- sample_n(trips_with_weather, nrow(trips_with_weather)*0.8)
+test <- anti_join(trips_with_weather, train)
+
+# store R^2 and RMSE for each degree polynomial
+R_sq_test <- c(1:10)
+RMSEs_test <- c(1:10)
+R_sq_train <- c(1:10)
+RMSEs_train <- c(1:10)
+
+
+for (i in 1:10) {
+  
+  # do cross-validation
+  model <- lm(formula = count ~ tmin + poly(tmin, i), data = train)
+  
+  test$pred <- predict(model, newdata = test)
+  train$pred <- predict(model, data = train)
+  
+  R_sq_test[i] <- cor(test$pred, test$count)^2
+  RMSEs_test[i] <- sqrt(mean((test$pred - test$count)^2))
+
+  
+  R_sq_train[i] <- cor(train$pred, train$count)^2
+  RMSEs_train[i] <- sqrt(mean((train$pred - train$count)^2))
+
+
+}
+
+```
+
+```{r plot-poly}
+R_sq_df <- data.frame("degree" = seq(1:10)) %>%
+  mutate(R_sq_test = R_sq_test, R_sq_train = R_sq_train)
+
+R_sq_df %>%
+  ggplot() +
+  geom_point(aes(x = degree, y = R_sq_test), color = "red") +
+  geom_point(aes(x = degree, y = R_sq_train), color = "darkgreen")
+```
+
+```{r plot-rmse}
+RMSE_df <- data.frame("degree" = seq(1:10)) %>%
+  mutate(RMSE_test = RMSEs_test, RMSE_train = RMSEs_train)
+
+
+RMSE_df %>%
+  ggplot() +
+  geom_line(aes(x = degree, y = RMSE_test), color = "red") +
+  geom_line(aes(x = degree, y = RMSE_train), color = "darkgreen")
+```
+
+```{r best-k}
+max_Rsq <- R_sq_df %>% filter(R_sq_test == max(R_sq_test))
+# this corresponds to degree 4 here
+
+
+set.seed(23)
+
+train <- sample_n(trips_with_weather, nrow(trips_with_weather)*0.8)
+test <- anti_join(trips_with_weather, train)
+
+# use degree-4 polynomial
+model <- lm(formula = count ~ tmin + poly(tmin, 4), data = train)
+
+test$pred <- predict(model, newdata = test)
+```
+
+```{r plot-best-k}
+test %>%
+  ggplot() +
+  geom_point(aes(x = tmin, y = count)) +
+  geom_line(aes(x = tmin, y = pred), color = "red")
+```
