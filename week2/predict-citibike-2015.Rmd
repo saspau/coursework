@@ -1,4 +1,9 @@
 ---
+title: "Predict Citibike 2015"
+output: html_document
+---
+
+---
 title: "Predict Citibike"
 output:
   html_document:
@@ -17,28 +22,23 @@ library(scales)
 # be picky about white backgrounds on our plots
 theme_set(theme_bw())
 
+```
 
+``` {r load-2014}
 # load RData file output by load_trips.R
 load('../week1/trips.RData')
 ```
 
-```{r fix-df}
+```{r}
 # join trips and weather
-trips_with_weather <- trips %>% 
+trips_with_weather_2014 <- trips %>% 
   group_by(ymd) %>% 
   summarize(count = n()) %>% 
   left_join(weather) %>%
   filter(!is.na(tmin))
 
-
-# add holiday data
-# holidays <- read.csv("holidays.csv")
-# holidays <- holidays %>% 
-  # mutate(ymd = as.Date(Date, "%m/%d/%Y")) %>% select(ymd, Bank.Holiday)
-
-
 # isolate previous day's prcp and snow
-prev_prcp <- trips_with_weather
+prev_prcp <- trips_with_weather_2014
 prev_prcp$date <- prev_prcp$date+1
 prev_prcp <- prev_prcp %>% select(date, prcp, snow)
 colnames(prev_prcp)[2] <- "prev_prcp"
@@ -46,21 +46,54 @@ colnames(prev_prcp)[3] <- "prev_snow"
 
 
 # add previous day's prcp and snow
-trips_with_weather <- trips_with_weather %>% 
+trips_with_weather_2014 <- trips_with_weather_2014 %>% 
   mutate(day_of_week = weekdays(ymd)) %>%
   left_join(prev_prcp) %>%
   filter(!is.na(prev_prcp)) # removes 01-01-2014 bc there is no previous day
 ```
 
-```{r create-model}
+
+``` {r load-2015}
+# load RData file output by load_trips.R
+load('trips.RData')
+```
+
+```{r fix-df}
+# fix data type
+weather$ymd <- as.Date(weather$date)
+weather <- weather %>% select(ymd, prcp, snwd, snow, tmax, tmin)
+
+# join trips and weather
+trips_with_weather_2015 <- trips %>% 
+  group_by(ymd) %>% 
+  summarize(count = n()) %>% 
+  left_join(weather) %>%
+  filter(!is.na(tmin))
+
+# isolate previous day's prcp and snow
+prev_prcp <- trips_with_weather_2015
+prev_prcp$ymd <- prev_prcp$ymd+1
+prev_prcp <- prev_prcp %>% select(ymd, prcp, snow)
+colnames(prev_prcp)[2] <- "prev_prcp"
+colnames(prev_prcp)[3] <- "prev_snow"
+
+
+# add previous day's prcp and snow
+trips_with_weather_2015 <- trips_with_weather_2015 %>% 
+  mutate(day_of_week = weekdays(ymd)) %>%
+  left_join(prev_prcp) %>%
+  filter(!is.na(prev_prcp)) # removes 01-01-2015 bc there is no previous day
+```
+
+```{r load-model}
+load('citibike_model.RData')
+```
+
+```{r predict}
 set.seed(23)
 
-train <- sample_n(trips_with_weather, nrow(trips_with_weather)*0.8)
-test <- anti_join(trips_with_weather, train)
-
-# our best model
-model <- lm(formula = count ~ tmax + prcp*tmin + day_of_week + snwd, data = train)
-summary(model)
+# using model that was trained on the entire 2014 data
+test <- trips_with_weather_2015
 
 test$pred <- predict(model, newdata = test)
 
@@ -85,6 +118,7 @@ test %>%
 ```
 
 ```{r plot2}
+
 test %>%
   ggplot() +
   geom_point(aes(x = pred, y = count)) +
@@ -93,9 +127,4 @@ test %>%
   scale_x_continuous(label = comma) +
   scale_y_continuous(label = comma)
 
-```
-
-```{r save}
-model <- lm(formula = count ~ tmax + prcp*tmin + day_of_week + snwd, data = trips_with_weather)
-save(model, file = "citibike_model.RData")
 ```
