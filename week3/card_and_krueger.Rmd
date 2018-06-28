@@ -1,0 +1,94 @@
+---
+title: 'Card & Krueger: Difference in Diffferences'
+date: "June 28, 2018"
+output: html_document
+---
+
+```{r setup}
+library(tidyverse)
+
+data <- read.csv('card_krueger_data.csv')
+
+```
+
+
+### Which outcome metrics could be impacted by the minimum wage change?
+
+**EMPFT**: need to cut down on staff -- full time workers are expensive!   
+**EMPPT**: perhaps more people will be applying, but fewer hires  
+**WAGE_ST**: trivial  
+**FIRSTINC**: starting wage will already be hire, so a raise will be less urgent  
+**MEALS**: less of a discount to compensate for the higher wages?  
+**PSODA**: trick customers into spending more money!!  
+**PENTREE**: raise prices to compensate for higher wages
+
+
+### Compute the 'diffs'
+```{r diffs}
+
+# rename for cleaner pattern matching
+colnames(data)[colnames(data)=="FIRSTIN2"] <- "FIRSTINC2"
+
+# get complementary indices and compute differences
+for(col in colnames(data)[11:27]){
+  col2 <- grep(paste("^", col, "[2]", sep=""), colnames(data))
+  if(!is.na(col2[1])){
+    data[[paste(col, "_DIFF", sep="")]] <- as.vector((data[col2] - data[col])[,1])
+  }
+}
+
+# run t-tests on important features for NJ
+nj <- data %>% filter(STATE == 1)
+t.test(nj$WAGE_ST_DIFF)
+t.test(nj$EMPFT_DIFF)
+t.test(nj$EMPPT_DIFF)
+t.test(nj$PENTREE)
+
+# show just the means (Intercepts)
+# colMeans(pa[47:61], na.rm=TRUE)
+
+# run t-tests on important features for PA
+pa <- data %>% filter(STATE == 0)
+t.test(pa$WAGE_ST_DIFF)
+t.test(pa$EMPFT_DIFF)
+t.test(pa$EMPPT_DIFF)
+t.test(pa$PENTREE)
+
+# show just the means (Intercepts)
+# colMeans(pa[47:61], na.rm=TRUE)
+
+
+```
+
+
+### Compute the "diff-in-diff" via the regression method
+```{r diff-in-diff}
+wage_st_reg <- lm(WAGE_ST_DIFF ~ factor(STATE), data = data)
+summary(wage_st_reg)
+
+empft_reg <- lm(EMPFT_DIFF ~ factor(STATE), data = data)
+summary(empft_reg)
+
+emppt_reg <- lm(EMPPT_DIFF ~ factor(STATE), data = data)
+summary(emppt_reg)
+
+pentree_reg <- lm(PENTREE_DIFF ~ factor(STATE), data = data)
+summary(pentree_reg)
+```
+### Did this analysis provide definitive evidence on the impact of the minimum wage on employment?
+Yes, as we observe an increase in full time employment in NJ after the increase in minimum wage.
+
+### Using an Independent Variable, GAP
+```{r gap}
+data <- data %>%
+  mutate(GAP = (5.05 - WAGE_ST) / WAGE_ST)
+
+gap_wage_reg <- lm(WAGE_ST_DIFF ~ as.factor(STATE)*GAP, data = data)
+summary(gap_wage_reg)
+
+gap_empft_reg <- lm(EMPFT_DIFF ~ as.factor(STATE)*GAP, data = data)
+summary(gap_wage_reg)
+
+gap_emppt_reg <- lm(EMPPT_DIFF ~ as.factor(STATE)*GAP, data = data)
+summary(gap_wage_reg)
+```
