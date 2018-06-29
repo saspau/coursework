@@ -1,0 +1,237 @@
+---
+title: "Logistic Regression Lab"
+output: html_document
+---
+
+*Exercises taken from https://rpubs.com/dvorakt/255527.*
+
+```{r libraries, message=FALSE, warning=FALSE}
+library(dplyr)
+library(stargazer)
+library(caret)
+library(scales)
+library(modelr)
+library(pROC)
+```
+
+```{r load-file}
+loan <- read.csv("lending_club_cleaned.csv")
+summary(loan)
+```
+
+### Estimating a logistic regression model
+```{r estimate}
+logit1 <- glm(good ~ fico, data = loan, family = "binomial")
+# family = "binomial" indicates we want to fit a logistic function
+
+summary(logit1)
+# "The coefficient on fico is positive and statistically significant. It tells us that a one point increase in fico score raises the log of odds ratio by 0.01"
+```
+
+### Interpreting coefficients (in terms of the odds ratio)
+```{r coef-odds}
+exp(coef(logit1))
+# "The exponential of the slope coefficient tells us the factor by which odds increase if the independent variable increases by one. So, if a fico score increases by 1 point, the odds ratio of loan being good increases by factor of 1.012 which means odds increase 1.2 percent"
+```
+
+### Getting predictions from the logit model
+```{r predict}
+# gives us the predictions as well as the probabilities
+loan %>% 
+  data_grid(fico) %>%
+  add_predictions(logit1) %>%
+  mutate(prob = 1/(1+exp(-pred)))
+```
+
+### Visualizing the predictions
+```{r plot-pred}
+plot_data <- loan %>%
+  group_by(fico) %>%
+  summarize(count = n(),
+            frac_good = mean(good == "good"))
+# frac_good: fraction of how many "good" lenders there are for each fico score
+
+plot_data$pred <- predict(logit1, plot_data, type="response")
+
+
+ggplot(plot_data, aes(x = fico, y = pred)) +
+  geom_line() +
+  geom_point(aes(x = fico, y = frac_good, size = count)) +
+  scale_y_continuous(label = percent) 
+```
+
+### Interpreting coefficients (in terms of probability)
+```{r coef-prob}
+# we want to know the effect of fico going from 700 to 750 on the probability 
+# of loan being good
+test <- data.frame(fico=c(700,750))
+test$pred <- predict(logit1, test, type="response")
+test
+
+# "The fico score going from 700 to 750 increases the probability of 
+# a good loan by seven percentage points"
+```
+
+### Interpreting coefficients in a multiple regression
+```{r coef-multiple}
+logit2 <- glm(good ~ fico + loan_amnt, data = loan, family = "binomial")
+summary(logit2)
+exp(coef(logit2))
+# holding loan amount constant, the effect of raising fico score by 1 point raises the odds of a good loan by 1.3 percent
+```
+
+### Working with categorial/factor variables
+```{r}
+
+logit3 <- glm(good ~ fico + loan_amnt + purpose, data = loan, family = "binomial")
+summary(logit3)
+
+round(exp(coef(logit3)),3)
+# "The coefficients show that the odds of a loan being good are lower for educational loans relative to debt consolidation loans by a factor of 0.57, or about 43% lower. As another example, let's take vacation and wedding loans.These have shockingly 12% higher odds of being good than debt consolidation loans."
+```
+
+### Visualizing predictions by category
+```{r category}
+logit3 <- glm(good ~ fico * purpose, data = loan, family = "binomial")
+summary(logit3)
+
+plot_data <- loan %>%
+  group_by(fico, purpose) %>%
+  summarize(count = n(),
+            frac_good = mean(good == "good"),
+            se = sqrt(frac_good * (1-frac_good) / count))
+
+plot_data$pred <- predict(logit3, plot_data, type="response")
+
+ggplot(plot_data, aes(x = fico, y = pred, color = purpose)) +
+  geom_line() +
+  geom_point(aes(x = fico, y = frac_good, size = count)) +
+  scale_y_continuous(label = percent) +
+  coord_cartesian(ylim = c(.5,1)) +
+  facet_wrap(~ purpose)
+```
+
+
+### Testing log reg model out of sample
+```{r out-of-sample}
+set.seed(364)
+sample <- sample(nrow(loan),floor(nrow(loan)*0.8))
+train <- loan[sample,]
+test <- loan[-sample,]
+
+logit4 <- glm(good ~ fico + dti+ loan_amnt + purpose, data = train, family = "binomial")
+test$pred <- predict(logit4, test, type="response")
+
+test$good_pred <- ifelse(test$pred > 0.80, "good", "bad")
+test$good_pred <- factor(test$good_pred, levels=c("bad", "good"))
+confusionMatrix(test$good_pred, test$good)
+# accuracy: 75%
+# we detect bad loans in 34% of cases
+# we label good loans as good in 83% of cases
+```
+
+
+## Titanic Data Exercises
+### Let's load the Titanic training data. What are the odds of surviving the shipwreck?
+```{r}
+titanic_train <- read.csv('titanic_train.csv')
+
+odds <- mean(titanic_train$Survived) / (1 - mean(titanic_train$Survived))
+odds
+
+mean(titanic_train$Survived)
+```
+
+
+### Using the logit model, estimate how much lower are the odds of survival for men relative to women?
+```{r}
+logit <- glm(Survived ~ Sex, data = titanic_train, family = "binomial")
+summary(logit)
+exp(coef(logit))
+
+model_data <- titanic_train %>% distinct(Sex)
+predict(logit, model_data, type="response")
+
+# Sexmale = 0.0809
+# Odds of survival for a male are lower related to the odds of survival
+# relative for a female by a factor of 0.08 (92% lower)
+```
+
+
+### Controlling for gender, does age have a statistically significant effect on the odds of survival? If so, what is the magnitude of that effect?
+```{r}
+logit <- glm(Survived ~ Sex + Age, data = titanic_train, family = "binomial")
+summary(logit)
+exp(coef(logit))
+```
+
+### Controlling for gender, does passenger class have a statistically significant effect on the odds of survival? If so, what is the magnitude of that effect?
+```{r}
+logit <- glm(Survived ~ Sex + Pclass, data = titanic_train, family = "binomial")
+summary(logit)
+exp(coef(logit))
+```
+
+
+### Controlling for gender, estimate the effect of being in the second class relative to first class, and the effect of being in the third relative to first.
+```{r}
+logit <- glm(Survived ~ Sex + factor(Pclass), data = titanic_train, family = "binomial")
+summary(logit)
+exp(coef(logit))
+
+# 57% lesser chance of surviving if in 2nd class, relative to 1st
+# 86% lesser chance of surviving if in 3rd class, relative to 1st
+```
+
+### Add fare to the regression you estimated above. Is fare a significant determinant of survival controlling for gender and passenger class? Do you think that if we regressed survival on just gender and fare, fare would be significant? Explain.
+```{r}
+logit <- glm(Survived ~ Sex + factor(Pclass) + Fare, data = titanic_train, family = "binomial")
+summary(logit)
+exp(coef(logit))
+```
+
+
+### Jack traveled in the third class and paid 5 pounds. Rose traveled in the first class and paid 500 for her ticket. What is the probability that Jack will survive? What is the probability that Rose will survive?
+```{r}
+test <- data.frame(Name = c("Jack","Rose"),
+                   Sex = c("male","female"),
+                   Pclass = c("3","1"),
+                   Fare = c(5, 500))
+
+test$pred <- predict(logit, test, type="response")
+test
+
+# Jack has a 9.46% chance of survival; Rose has a 95.5% chance of survival
+```
+
+```{r}
+new_titanic <- titanic_train
+new_titanic$Age <- cut(new_titanic$Age, breaks = seq(0,100,5))
+
+new_titanic$Age <- ifelse(is.na(new_titanic$Age), "unknown", new_titanic$Age)
+
+ggplot(new_titanic) + geom_bar(aes(x = Age))
+
+
+
+set.seed(364)
+sample <- sample(nrow(new_titanic),floor(nrow(new_titanic)*0.8))
+train <- new_titanic[sample,]
+test <- new_titanic[-sample,]
+
+logit <- glm(Survived ~ Sex * Age + factor(Pclass) , data = new_titanic, family = "binomial")
+summary(logit)
+
+test$pred <- predict(logit, test, type="response")
+
+test$good_pred <- ifelse(test$pred > 0.5, 1, 0)
+confusionMatrix(factor(test$good_pred), factor(test$Survived))
+```
+
+### Plot the ROC curve from above.
+```{r}
+roc <- roc(test$Survived, test$good_pred)
+#creates an object with all sorts of diagnostics including sensitivities and specificities
+
+plot.roc(roc)
+```
