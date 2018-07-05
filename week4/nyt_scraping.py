@@ -13,7 +13,6 @@ import requests
 import json
 import sys
 import codecs
-from math import floor
 import time
 
 ARTICLE_SEARCH_URL = 'https://api.nytimes.com/svc/search/v2/articlesearch.json'
@@ -29,8 +28,7 @@ if __name__=='__main__':
 
 	headings = ['section_name', 'web_url', 'pub_date', 'snippet']
 
-	f = codecs.open('test.tsv', mode='wt', encoding='utf-8')
-	# f = codecs.open(section_name + '.tsv', mode='wt', encoding='utf-8')
+	f = codecs.open(section_name + '.tsv', mode='wt', encoding='utf-8')
 	f.write(('\t'.join(headings)) + '\n')   
 
 	for i in range(int(num_articles)/10):
@@ -42,7 +40,7 @@ if __name__=='__main__':
 		data = json.loads(r.content)
 
 		for doc in data['response']['docs']:
-			f.write('\t'.join([section_name, doc['web_url'], doc['pub_date'], doc['snippet'].encode('utf-8').replace('\n','')]) + '\n')
+			f.write('\t'.join([section_name, doc['web_url'], doc['pub_date'], doc['snippet'].replace('\n','')]) + '\n')
 
 		time.sleep(1)
 
