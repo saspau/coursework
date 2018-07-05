@@ -1,0 +1,116 @@
+---
+title: 'Decision Trees Lab: Carseats'
+author: "Sasha Paulovich"
+date: "July 3, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## from "Introduction to Statistical Learning"
+### Lab 8.3.1
+
+```{r libraries}
+library(tidyverse)
+library(tree)
+library(ISLR)
+attach(Carseats)
+```
+
+```{r}
+# create a new categorical variable based on value on Sales
+High <- ifelse(Sales <= 8, "No", "Yes")
+
+# merge with original data
+Carseats <- data.frame(Carseats, High)
+```
+
+
+### fit a classification tree to predict High using all variables except Sales
+```{r}
+tree_carseats <- tree(High ~ .-Sales, Carseats)
+
+summary(tree_carseats)
+# we can see the vars that are actually used as nodes in the tree
+# training error rate is 9%
+```
+
+
+### display tree structure
+```{r}
+plot(tree_carseats)
+
+# show node labels
+text(tree_carseats, pretty=0)
+```
+
+
+### split data into train & test, and predict to evaluate performance on test
+```{r}
+set.seed(2)
+train <- sample(1:nrow(Carseats), 200)
+Carseats_test <- Carseats[-train,]
+High_test <- High[-train]
+
+tree_carseats <- tree(High ~ .-Sales, Carseats, subset=train)
+
+# type="class" => return actual class prediction
+tree_pred <- predict(tree_carseats, Carseats_test, type="class")
+
+table(tree_pred, High_test)
+# accuracy on test data = 71.5% [(86+57)/200]
+```
+
+
+### use cross-validation and pruning: will we see an improvement?
+```{r}
+set.seed(3)
+
+# FUN=prune.misclass => classification error rate guides cv/pruning
+cv_carseats <- cv.tree(tree_carseats, FUN=prune.misclass)
+
+names(cv_carseats)
+cv_carseats
+# size: # of terminal nodes each tree considered
+# dev: corresponding (cv) error rate
+# k: value of the cost-complexity parameter used
+# tree with 9 terminal nodes had the lowest error rate
+```
+
+
+### plot error rate as a function of size and k
+```{r}
+par(mfrow=c(1,2))
+plot(cv_carseats$size, cv_carseats$dev, type="b")
+plot(cv_carseats$k, cv_carseats$dev, type="b")
+```
+
+
+#### prune the tree to get the 9-node tree
+```{r}
+prune_carseats <- prune.misclass(tree_carseats, best=9)
+plot(prune_carseats)
+text(prune_carseats, pretty=0)
+```
+
+
+### evaluate performance of pruned tree on test data
+```{r}
+tree_pred <- predict(prune_carseats, Carseats_test, type="class")
+table(tree_pred, High_test)
+# 77% accuracy [(94+60)/200]
+```
+
+
+### repeat previous section with a new value for best
+```{r}
+prune_carseats <- prune.misclass(tree_carseats, best=15)
+plot(prune_carseats)
+text(prune_carseats, pretty=0)
+tree_pred <- predict(prune_carseats, Carseats_test, type="class")
+table(tree_pred, High_test)
+# 74% accuracy [(86+62)/200]
+```
