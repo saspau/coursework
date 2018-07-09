@@ -1,0 +1,82 @@
+---
+title: "Trips from Penn Station to Grand Central (2014)"
+author: "Sasha Paulovich"
+date: "July 6, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries, message=FALSE}
+library(tidyverse)
+library(lubridate)
+library(dplyr)
+```
+
+#### Load 2014 Citibike Data
+```{r load-data}
+load('../week1/trips.RData')
+```
+
+#### Create a function that computes historical trip times between any two stations:
+* Take the trips dataframe and two station names as inputs  
+* Return a 168-by-6 dataframe with summary statistics of trip times for each hour of the week (e.g., Monday 9am, Monday 10am, etc.), where the summary statistics include:  
++ Average number of trips in that hour  
++ Average and median trip times for that hour  
++ Standard deviation in trip time for that hour  
++ Upper and lower quartiles of trip time for that hour  
+
+```{r}
+summarize_stats <- function(station1, station2) {
+  
+  # filter for relevant trips
+  df <- trips %>% 
+    filter(start_station_name == station1, end_station_name == station2) %>%
+    mutate(week = week(starttime), DOW = weekdays(starttime), hour = hour(starttime)) %>%
+    select(starttime, week, DOW, hour, start_station_name, end_station_name, tripduration)
+  
+  # compute trip duration stats
+  df_tripduration <- df %>% 
+    group_by(DOW, hour) %>%
+    summarize(avg_time = mean(tripduration),
+              lower_quartile = quantile(tripduration, 0.25),
+              median_time = median(tripduration),
+              upper_quartile = quantile(tripduration, 0.75),
+              sd = sd(tripduration)) 
+
+  # compute average number of trips
+  df_avgtrips <- df %>%
+    group_by(week, DOW, hour) %>%
+    summarize(count = n()) %>%
+    ungroup() %>%
+    group_by(DOW, hour) %>%
+    summarize(mean_trips = mean(count))
+
+  # combine the dfs
+  df_stats <- full_join(df_avgtrips, df_tripduration)
+  
+  return(df_stats)
+}
+
+
+```
+
+
+#### Use this function on trips between Penn Station and Grand Central (you can use the most popular station at each location)
+```{r}
+penn_station <- "8 Ave & W 31 St"
+grand_central <- "E 43 St & Vanderbilt Ave"
+
+ps_gc_stats <- summarize_stats(penn_station, grand_central)
+```
+
+#### Make a plot of the results, where each facet is a day of the week, the x axis shows hour of the day, and the y axis shows average trip time, with transparent ribbons to show the standard deviation in trip time around the mean
+```{r}
+ps_gc_stats %>%
+  ggplot(aes(x = hour, y = avg_time)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = avg_time - sd, ymax = avg_time + sd), alpha = 0.25) +
+  facet_wrap(~DOW)
+```
